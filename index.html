@@ -21,6 +21,8 @@
     .btn-danger:hover { background: #b91c1c; }
     .btn-secondary { background: #e5e7eb; color: #1a1a1a; width: 100%; }
     .btn-secondary:hover { background: #d1d5db; }
+    .btn-next { background: #2563eb; color: #fff; width: 100%; margin-top: 12px; }
+    .btn-next:hover { background: #1d4ed8; }
     .section { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; border: 1px solid #e5e7eb; }
     .trip-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
     .trip-card:hover { border-color: #2563eb; }
@@ -41,7 +43,24 @@
     .tab { flex: 1; padding: 10px; text-align: center; border: 1px solid #e5e7eb; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; background: #fff; }
     .tab.active { background: #2563eb; color: #fff; border-color: #2563eb; }
     .hidden { display: none; }
-    .divider { border: none; border-top: 1px solid #e5e7eb; margin: 16px 0; }
+
+    /* Calendar */
+    .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .cal-header button { background: none; border: 1px solid #e5e7eb; border-radius: 6px; width: 36px; height: 36px; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; padding: 0; color: #1a1a1a; }
+    .cal-header button:hover { background: #f0f0f0; }
+    .cal-title { font-weight: 700; font-size: 1rem; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+    .cal-day-name { font-size: 0.75rem; color: #888; font-weight: 600; padding: 4px 0; }
+    .cal-day { width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.9rem; cursor: default; color: #ccc; }
+    .cal-day.active { color: #1a1a1a; cursor: pointer; }
+    .cal-day.active:hover { background: #f0f0f0; }
+    .cal-day.has-trip { background: #dbeafe; color: #1e40af; font-weight: 600; cursor: pointer; }
+    .cal-day.has-trip:hover { background: #bfdbfe; }
+    .cal-day.today { border: 2px solid #2563eb; }
+    .cal-day.selected { background: #2563eb; color: #fff; }
+    .cal-day.selected:hover { background: #1d4ed8; }
+    .cal-day.past { color: #ddd; cursor: not-allowed; }
+    .cal-availability { margin-top: 16px; font-size: 0.9rem; color: #666; }
   </style>
 </head>
 <body>
@@ -58,9 +77,20 @@
     <div id="tab-book">
       <div class="section">
         <div id="msg-book"></div>
-        <label for="date-input">Välj datum</label>
-        <input type="date" id="date-input">
-        <div id="trips-list"></div>
+        <label>Välj datum och tid</label>
+
+        <!-- Calendar -->
+        <div class="cal-header">
+          <button onclick="changeMonth(-1)">&#8249;</button>
+          <span class="cal-title" id="cal-title"></span>
+          <button onclick="changeMonth(1)">&#8250;</button>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+
+        <button class="btn-next" onclick="goToNextAvailable()">Nästa tillgängliga datum</button>
+
+        <div class="cal-availability" id="cal-availability"></div>
+        <div id="trips-list" style="margin-top: 12px;"></div>
       </div>
 
       <div id="booking-form" class="section hidden">
@@ -88,16 +118,22 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // ─── CONFIG: Replace with your Supabase project values ───
+    // ─── CONFIG ───
     const SUPABASE_URL = 'https://jnjvjeaujnfjlhmxatqx.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpuanZqZWF1am5mamxobXhhdHF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDU1NTksImV4cCI6MjA4NjU4MTU1OX0.8xq7bOM9a-0WXFepv0Ondyz0mOwhgtshpOzLzPwif8A';
-    // ─────────────────────────────────────────────────────────
+    // ──────────────
 
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const MONTHS = ['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'];
+    const DAYS = ['mån','tis','ons','tors','fre','lör','sön'];
+
+    let calYear, calMonth; // 0-indexed month
+    let selectedDate = null;
+    let tripDatesThisMonth = new Set();
     let selectedTripId = null;
     let selectedTripSpots = 0;
 
-    // Tabs
+    // ─── TABS ───
     function showTab(tab) {
       document.getElementById('tab-book').classList.toggle('hidden', tab !== 'book');
       document.getElementById('tab-manage').classList.toggle('hidden', tab !== 'manage');
@@ -106,36 +142,135 @@
       });
     }
 
-    // Messages
     function showMsg(containerId, text, type) {
       const el = document.getElementById(containerId);
       el.innerHTML = `<div class="msg msg-${type}">${text}</div>`;
       setTimeout(() => el.innerHTML = '', 5000);
     }
 
-    // Date picker: set min to today, load trips on change
-    const dateInput = document.getElementById('date-input');
-    dateInput.min = new Date().toISOString().split('T')[0];
-    dateInput.addEventListener('change', loadTrips);
+    // ─── CALENDAR ───
+    function initCalendar() {
+      const now = new Date();
+      calYear = now.getFullYear();
+      calMonth = now.getMonth();
+      renderCalendar();
+    }
 
-    async function loadTrips() {
-      const date = dateInput.value;
-      if (!date) return;
+    function changeMonth(dir) {
+      calMonth += dir;
+      if (calMonth < 0) { calMonth = 11; calYear--; }
+      if (calMonth > 11) { calMonth = 0; calYear++; }
+      renderCalendar();
+    }
+
+    async function renderCalendar() {
+      document.getElementById('cal-title').textContent = `${MONTHS[calMonth]} ${calYear}`;
+
+      // Fetch trip dates for this month
+      const startDate = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(calYear, calMonth + 1, 0).getDate();
+      const endDate = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      const { data } = await sb.from('trips').select('date').gte('date', startDate).lte('date', endDate);
+      tripDatesThisMonth = new Set((data || []).map(t => t.date));
+
+      const grid = document.getElementById('cal-grid');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = fmt(today);
+
+      // Day name headers
+      let html = DAYS.map(d => `<div class="cal-day-name">${d}</div>`).join('');
+
+      // First day of month (0=Sun, adjust to Mon-start)
+      const firstDay = new Date(calYear, calMonth, 1).getDay();
+      const offset = (firstDay + 6) % 7; // Mon=0
+
+      // Empty cells before first day
+      for (let i = 0; i < offset; i++) {
+        html += '<div class="cal-day"></div>';
+      }
+
+      // Days of month
+      for (let d = 1; d <= lastDay; d++) {
+        const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const dateObj = new Date(calYear, calMonth, d);
+        const isPast = dateObj < today;
+        const isToday = dateStr === todayStr;
+        const hasTrip = tripDatesThisMonth.has(dateStr);
+        const isSelected = dateStr === selectedDate;
+
+        let cls = 'cal-day';
+        if (isPast) {
+          cls += ' past';
+        } else {
+          cls += ' active';
+          if (hasTrip) cls += ' has-trip';
+        }
+        if (isToday) cls += ' today';
+        if (isSelected) cls += ' selected';
+
+        const onclick = isPast ? '' : `onclick="selectDate('${dateStr}')"`;
+        html += `<div class="${cls}" ${onclick}>${d}</div>`;
+      }
+
+      grid.innerHTML = html;
+    }
+
+    function fmt(date) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+
+    function selectDate(dateStr) {
+      selectedDate = dateStr;
       selectedTripId = null;
       document.getElementById('booking-form').classList.add('hidden');
+      renderCalendar();
+      loadTrips(dateStr);
+    }
+
+    async function goToNextAvailable() {
+      const today = fmt(new Date());
+      const { data, error } = await sb.rpc('get_next_available_date', { from_date: today });
+      if (error || !data) {
+        showMsg('msg-book', 'Inga tillgängliga turer hittades.', 'error');
+        return;
+      }
+      // Navigate calendar to that month and select the date
+      const d = new Date(data);
+      calYear = d.getFullYear();
+      calMonth = d.getMonth();
+      selectedDate = data;
+      await renderCalendar();
+      loadTrips(data);
+    }
+
+    // ─── TRIPS ───
+    async function loadTrips(date) {
       const container = document.getElementById('trips-list');
+      const avail = document.getElementById('cal-availability');
       container.innerHTML = '<p style="color:#666;font-size:0.9rem;">Laddar...</p>';
+      avail.textContent = '';
 
       const { data, error } = await sb.rpc('get_trips_with_availability', { target_date: date });
       if (error) {
         container.innerHTML = '<p style="color:#dc2626;font-size:0.9rem;">Kunde inte ladda turer.</p>';
         return;
       }
+
+      // Format selected date for display
+      const d = new Date(date + 'T00:00:00');
+      const dayNames = ['söndag','måndag','tisdag','onsdag','torsdag','fredag','lördag'];
+      const dayName = dayNames[d.getDay()];
+      const dateDisplay = `${dayName} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+
       if (!data.length) {
+        avail.textContent = `Tillgänglighet för ${dateDisplay}`;
         container.innerHTML = '<p style="color:#666;font-size:0.9rem;">Inga turer denna dag.</p>';
         return;
       }
 
+      avail.textContent = `Tillgänglighet för ${dateDisplay}`;
       container.innerHTML = data.map(t => {
         const spotsClass = t.spots_left <= 0 ? 'full' : t.spots_left <= 5 ? 'few' : 'available';
         const spotsText = t.spots_left <= 0 ? 'Fullbokad' : `${t.spots_left} platser kvar`;
@@ -159,6 +294,7 @@
       document.getElementById('booking-form').classList.remove('hidden');
     }
 
+    // ─── BOOKING ───
     async function submitBooking() {
       const name = document.getElementById('input-name').value.trim();
       const phone = document.getElementById('input-phone').value.trim();
@@ -198,10 +334,10 @@
       document.getElementById('input-phone').value = '';
       document.getElementById('input-count').value = '1';
       document.getElementById('booking-form').classList.add('hidden');
-      loadTrips();
+      loadTrips(selectedDate);
     }
 
-    // Manage bookings
+    // ─── MANAGE BOOKINGS ───
     async function lookupBookings() {
       const phone = document.getElementById('lookup-phone').value.trim();
       if (!phone) {
@@ -243,6 +379,9 @@
       showMsg('msg-manage', 'Bokningen har avbokats.', 'success');
       lookupBookings();
     }
+
+    // Init
+    initCalendar();
   </script>
 </body>
 </html>

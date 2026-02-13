@@ -117,6 +117,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Find next date with available spots
+CREATE OR REPLACE FUNCTION get_next_available_date(from_date DATE)
+RETURNS DATE AS $$
+BEGIN
+  RETURN (
+    SELECT t.date
+    FROM trips t
+    LEFT JOIN (
+      SELECT trip_id, SUM(num_people) AS total FROM bookings GROUP BY trip_id
+    ) b ON b.trip_id = t.id
+    WHERE t.date >= from_date
+      AND (t.max_capacity - COALESCE(b.total, 0)) > 0
+    ORDER BY t.date
+    LIMIT 1
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- 4. Row Level Security
 -- ----------------------
 
