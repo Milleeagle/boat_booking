@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Jungfruturer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; background: #f8f9fa; line-height: 1.5; }
+    .container { max-width: 700px; margin: 0 auto; padding: 24px 16px; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    h2 { font-size: 1.1rem; margin-bottom: 12px; }
+    .subtitle { color: #666; margin-bottom: 24px; font-size: 0.9rem; }
+    label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem; }
+    input, select { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; margin-bottom: 16px; }
+    input:focus, select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
+    button { padding: 10px 20px; border: none; border-radius: 6px; font-size: 0.95rem; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #2563eb; color: #fff; width: 100%; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-sm { padding: 6px 14px; font-size: 0.85rem; width: auto; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-secondary { background: #e5e7eb; color: #1a1a1a; }
+    .btn-secondary:hover { background: #d1d5db; }
+    .btn-logout { background: none; border: 1px solid #ccc; color: #666; padding: 6px 14px; font-size: 0.85rem; width: auto; }
+    .section { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; border: 1px solid #e5e7eb; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tab { flex: 1; padding: 10px; text-align: center; border: 1px solid #e5e7eb; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; background: #fff; }
+    .tab.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 8px; border-bottom: 2px solid #e5e7eb; font-size: 0.85rem; color: #666; }
+    td { padding: 8px; border-bottom: 1px solid #f0f0f0; }
+    .msg { padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 0.9rem; }
+    .msg-success { background: #dcfce7; color: #166534; }
+    .msg-error { background: #fee2e2; color: #991b1b; }
+    .row { display: flex; gap: 12px; }
+    .row > * { flex: 1; }
+    .total { font-weight: 600; color: #666; font-size: 0.9rem; margin-bottom: 12px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- LOGIN -->
+    <div id="login-view">
+      <h1>Admin</h1>
+      <p class="subtitle">Jungfruturer — Bokningssystem</p>
+      <div class="section">
+        <div id="msg-login"></div>
+        <label for="login-email">E-post</label>
+        <input type="email" id="login-email">
+        <label for="login-password">Lösenord</label>
+        <input type="password" id="login-password">
+        <button class="btn-primary" onclick="login()">Logga in</button>
+      </div>
+    </div>
+
+    <!-- ADMIN DASHBOARD -->
+    <div id="admin-view" class="hidden">
+      <div class="header">
+        <div>
+          <h1>Bokningar</h1>
+          <p class="subtitle">Jungfruturer</p>
+        </div>
+        <button class="btn-logout" onclick="logout()">Logga ut</button>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('bookings')">Bokningar</div>
+        <div class="tab" onclick="showTab('trips')">Hantera turer</div>
+      </div>
+
+      <!-- BOOKINGS TAB -->
+      <div id="tab-bookings">
+        <div class="section">
+          <div id="msg-admin"></div>
+          <label for="admin-date">Datum</label>
+          <input type="date" id="admin-date">
+          <div id="bookings-list"></div>
+        </div>
+      </div>
+
+      <!-- TRIPS TAB -->
+      <div id="tab-trips" class="hidden">
+        <div class="section">
+          <h2>Lägg till tur</h2>
+          <div id="msg-trips"></div>
+          <div class="row">
+            <div>
+              <label for="trip-date">Datum</label>
+              <input type="date" id="trip-date">
+            </div>
+            <div>
+              <label for="trip-time">Avgångstid</label>
+              <input type="time" id="trip-time">
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="trip-location">Avgångsplats</label>
+              <select id="trip-location">
+                <option value="Byxelkrok">Byxelkrok</option>
+                <option value="Oskarshamn">Oskarshamn</option>
+              </select>
+            </div>
+            <div>
+              <label for="trip-capacity">Max platser</label>
+              <input type="number" id="trip-capacity" min="1" value="50">
+            </div>
+          </div>
+          <button class="btn-success btn-sm" onclick="addTrip()">Lägg till</button>
+        </div>
+
+        <div class="section">
+          <h2>Befintliga turer</h2>
+          <label for="trips-filter-date">Filtrera på datum</label>
+          <input type="date" id="trips-filter-date">
+          <div id="trips-table"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // ─── CONFIG: Replace with your Supabase project values ───
+    const SUPABASE_URL = 'https://jnjvjeaujnfjlhmxatqx.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpuanZqZWF1am5mamxobXhhdHF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDU1NTksImV4cCI6MjA4NjU4MTU1OX0.8xq7bOM9a-0WXFepv0Ondyz0mOwhgtshpOzLzPwif8A';
+    // ─────────────────────────────────────────────────────────
+
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Auth
+    async function login() {
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) {
+        showMsg('msg-login', 'Fel e-post eller lösenord.', 'error');
+        return;
+      }
+      showDashboard();
+    }
+
+    async function logout() {
+      await sb.auth.signOut();
+      document.getElementById('login-view').classList.remove('hidden');
+      document.getElementById('admin-view').classList.add('hidden');
+    }
+
+    async function checkSession() {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) showDashboard();
+    }
+
+    function showDashboard() {
+      document.getElementById('login-view').classList.add('hidden');
+      document.getElementById('admin-view').classList.remove('hidden');
+    }
+
+    // Tabs
+    function showTab(tab) {
+      document.getElementById('tab-bookings').classList.toggle('hidden', tab !== 'bookings');
+      document.getElementById('tab-trips').classList.toggle('hidden', tab !== 'trips');
+      document.querySelectorAll('.tab').forEach((el, i) => {
+        el.classList.toggle('active', (i === 0 && tab === 'bookings') || (i === 1 && tab === 'trips'));
+      });
+    }
+
+    function showMsg(containerId, text, type) {
+      const el = document.getElementById(containerId);
+      el.innerHTML = `<div class="msg msg-${type}">${text}</div>`;
+      setTimeout(() => el.innerHTML = '', 5000);
+    }
+
+    // Bookings
+    const adminDate = document.getElementById('admin-date');
+    adminDate.addEventListener('change', loadBookings);
+
+    async function loadBookings() {
+      const date = adminDate.value;
+      if (!date) return;
+      const container = document.getElementById('bookings-list');
+      container.innerHTML = '<p style="color:#666;font-size:0.9rem;">Laddar...</p>';
+
+      // Get trips for this date, then bookings for those trips
+      const { data: trips } = await sb.from('trips')
+        .select('id, departure_time, departure_location, max_capacity')
+        .eq('date', date)
+        .order('departure_time');
+
+      if (!trips || !trips.length) {
+        container.innerHTML = '<p style="color:#666;font-size:0.9rem;">Inga turer denna dag.</p>';
+        return;
+      }
+
+      const tripIds = trips.map(t => t.id);
+      const { data: bookings } = await sb.from('bookings')
+        .select('*')
+        .in('trip_id', tripIds)
+        .order('created_at');
+
+      if (!bookings || !bookings.length) {
+        container.innerHTML = '<p style="color:#666;font-size:0.9rem;">Inga bokningar denna dag.</p>';
+        return;
+      }
+
+      const totalPeople = bookings.reduce((sum, b) => sum + b.num_people, 0);
+
+      let html = `<p class="total">${bookings.length} bokningar — ${totalPeople} personer totalt</p>`;
+
+      // Group by trip
+      for (const trip of trips) {
+        const tripBookings = bookings.filter(b => b.trip_id === trip.id);
+        if (!tripBookings.length) continue;
+        const tripPeople = tripBookings.reduce((sum, b) => sum + b.num_people, 0);
+        html += `<h2 style="margin-top:16px;">${trip.departure_location} ${trip.departure_time.slice(0,5)} (${tripPeople}/${trip.max_capacity})</h2>`;
+        html += `<table><tr><th>Namn</th><th>Telefon</th><th>Antal</th><th></th></tr>`;
+        for (const b of tripBookings) {
+          html += `<tr>
+            <td>${escHtml(b.name)}</td>
+            <td>${escHtml(b.phone)}</td>
+            <td>${b.num_people}</td>
+            <td><button class="btn-danger btn-sm" onclick="deleteBooking('${b.id}')">Ta bort</button></td>
+          </tr>`;
+        }
+        html += '</table>';
+      }
+      container.innerHTML = html;
+    }
+
+    async function deleteBooking(id) {
+      if (!confirm('Ta bort denna bokning?')) return;
+      await sb.from('bookings').delete().eq('id', id);
+      loadBookings();
+    }
+
+    // Trips management
+    const tripsFilterDate = document.getElementById('trips-filter-date');
+    tripsFilterDate.addEventListener('change', loadTrips);
+
+    async function loadTrips() {
+      const date = tripsFilterDate.value;
+      if (!date) return;
+      const container = document.getElementById('trips-table');
+      container.innerHTML = '<p style="color:#666;font-size:0.9rem;">Laddar...</p>';
+
+      const { data, error } = await sb.from('trips')
+        .select('*')
+        .eq('date', date)
+        .order('departure_time');
+
+      if (!data || !data.length) {
+        container.innerHTML = '<p style="color:#666;font-size:0.9rem;">Inga turer denna dag.</p>';
+        return;
+      }
+
+      let html = '<table><tr><th>Tid</th><th>Plats</th><th>Max</th><th></th></tr>';
+      for (const t of data) {
+        html += `<tr>
+          <td>${t.departure_time.slice(0,5)}</td>
+          <td>${t.departure_location}</td>
+          <td>${t.max_capacity}</td>
+          <td><button class="btn-danger btn-sm" onclick="deleteTrip('${t.id}')">Ta bort</button></td>
+        </tr>`;
+      }
+      html += '</table>';
+      container.innerHTML = html;
+    }
+
+    async function addTrip() {
+      const date = document.getElementById('trip-date').value;
+      const time = document.getElementById('trip-time').value;
+      const location = document.getElementById('trip-location').value;
+      const capacity = parseInt(document.getElementById('trip-capacity').value);
+
+      if (!date || !time || !location || !capacity) {
+        showMsg('msg-trips', 'Fyll i alla fält.', 'error');
+        return;
+      }
+
+      const { error } = await sb.from('trips').insert({
+        date,
+        departure_time: time,
+        departure_location: location,
+        max_capacity: capacity
+      });
+
+      if (error) {
+        showMsg('msg-trips', 'Kunde inte lägga till turen.', 'error');
+        return;
+      }
+
+      showMsg('msg-trips', 'Tur tillagd!', 'success');
+      // Refresh if filter date matches
+      if (tripsFilterDate.value === date) loadTrips();
+    }
+
+    async function deleteTrip(id) {
+      if (!confirm('Ta bort denna tur? Alla bokningar för turen tas också bort.')) return;
+      await sb.from('trips').delete().eq('id', id);
+      loadTrips();
+      if (adminDate.value) loadBookings();
+    }
+
+    function escHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    // Init: check if already logged in
+    checkSession();
+  </script>
+</body>
+</html>

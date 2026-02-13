@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boka plats — Jungfruturer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; background: #f8f9fa; line-height: 1.5; }
+    .container { max-width: 520px; margin: 0 auto; padding: 24px 16px; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    .subtitle { color: #666; margin-bottom: 24px; font-size: 0.9rem; }
+    label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem; }
+    input, select { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; margin-bottom: 16px; }
+    input:focus, select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
+    button { padding: 10px 20px; border: none; border-radius: 6px; font-size: 0.95rem; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #2563eb; color: #fff; width: 100%; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+    .btn-danger { background: #dc2626; color: #fff; padding: 6px 14px; font-size: 0.85rem; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-secondary { background: #e5e7eb; color: #1a1a1a; width: 100%; }
+    .btn-secondary:hover { background: #d1d5db; }
+    .section { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; border: 1px solid #e5e7eb; }
+    .trip-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
+    .trip-card:hover { border-color: #2563eb; }
+    .trip-card.selected { border-color: #2563eb; background: #eff6ff; }
+    .trip-card .location { font-weight: 600; }
+    .trip-card .meta { color: #666; font-size: 0.85rem; }
+    .trip-card .spots { font-size: 0.85rem; font-weight: 600; }
+    .spots.available { color: #16a34a; }
+    .spots.few { color: #d97706; }
+    .spots.full { color: #dc2626; }
+    .booking-item { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .booking-info { font-size: 0.9rem; }
+    .booking-info strong { display: block; }
+    .msg { padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 0.9rem; }
+    .msg-success { background: #dcfce7; color: #166534; }
+    .msg-error { background: #fee2e2; color: #991b1b; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tab { flex: 1; padding: 10px; text-align: center; border: 1px solid #e5e7eb; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; background: #fff; }
+    .tab.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .hidden { display: none; }
+    .divider { border: none; border-top: 1px solid #e5e7eb; margin: 16px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Boka plats</h1>
+    <p class="subtitle">MS Solfrun — Turer till Blå Jungfrun</p>
+
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('book')">Boka</div>
+      <div class="tab" onclick="showTab('manage')">Mina bokningar</div>
+    </div>
+
+    <!-- BOOK TAB -->
+    <div id="tab-book">
+      <div class="section">
+        <div id="msg-book"></div>
+        <label for="date-input">Välj datum</label>
+        <input type="date" id="date-input">
+        <div id="trips-list"></div>
+      </div>
+
+      <div id="booking-form" class="section hidden">
+        <label for="input-name">Namn</label>
+        <input type="text" id="input-name" placeholder="Ditt namn">
+        <label for="input-phone">Telefonnummer</label>
+        <input type="tel" id="input-phone" placeholder="07X-XXX XX XX">
+        <label for="input-count">Antal personer</label>
+        <input type="number" id="input-count" min="1" value="1">
+        <button class="btn-primary" id="btn-book" onclick="submitBooking()">Boka</button>
+      </div>
+    </div>
+
+    <!-- MANAGE TAB -->
+    <div id="tab-manage" class="hidden">
+      <div class="section">
+        <div id="msg-manage"></div>
+        <label for="lookup-phone">Telefonnummer</label>
+        <input type="tel" id="lookup-phone" placeholder="07X-XXX XX XX">
+        <button class="btn-secondary" onclick="lookupBookings()">Sök</button>
+        <div id="my-bookings" style="margin-top: 16px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // ─── CONFIG: Replace with your Supabase project values ───
+    const SUPABASE_URL = 'https://jnjvjeaujnfjlhmxatqx.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpuanZqZWF1am5mamxobXhhdHF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwMDU1NTksImV4cCI6MjA4NjU4MTU1OX0.8xq7bOM9a-0WXFepv0Ondyz0mOwhgtshpOzLzPwif8A';
+    // ─────────────────────────────────────────────────────────
+
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let selectedTripId = null;
+    let selectedTripSpots = 0;
+
+    // Tabs
+    function showTab(tab) {
+      document.getElementById('tab-book').classList.toggle('hidden', tab !== 'book');
+      document.getElementById('tab-manage').classList.toggle('hidden', tab !== 'manage');
+      document.querySelectorAll('.tab').forEach((el, i) => {
+        el.classList.toggle('active', (i === 0 && tab === 'book') || (i === 1 && tab === 'manage'));
+      });
+    }
+
+    // Messages
+    function showMsg(containerId, text, type) {
+      const el = document.getElementById(containerId);
+      el.innerHTML = `<div class="msg msg-${type}">${text}</div>`;
+      setTimeout(() => el.innerHTML = '', 5000);
+    }
+
+    // Date picker: set min to today, load trips on change
+    const dateInput = document.getElementById('date-input');
+    dateInput.min = new Date().toISOString().split('T')[0];
+    dateInput.addEventListener('change', loadTrips);
+
+    async function loadTrips() {
+      const date = dateInput.value;
+      if (!date) return;
+      selectedTripId = null;
+      document.getElementById('booking-form').classList.add('hidden');
+      const container = document.getElementById('trips-list');
+      container.innerHTML = '<p style="color:#666;font-size:0.9rem;">Laddar...</p>';
+
+      const { data, error } = await sb.rpc('get_trips_with_availability', { target_date: date });
+      if (error) {
+        container.innerHTML = '<p style="color:#dc2626;font-size:0.9rem;">Kunde inte ladda turer.</p>';
+        return;
+      }
+      if (!data.length) {
+        container.innerHTML = '<p style="color:#666;font-size:0.9rem;">Inga turer denna dag.</p>';
+        return;
+      }
+
+      container.innerHTML = data.map(t => {
+        const spotsClass = t.spots_left <= 0 ? 'full' : t.spots_left <= 5 ? 'few' : 'available';
+        const spotsText = t.spots_left <= 0 ? 'Fullbokad' : `${t.spots_left} platser kvar`;
+        const disabled = t.spots_left <= 0 ? 'style="opacity:0.5;cursor:not-allowed;"' : '';
+        return `<div class="trip-card" ${disabled} data-id="${t.id}" data-spots="${t.spots_left}" onclick="selectTrip(this)">
+          <div class="location">${t.departure_location}</div>
+          <div class="meta">Avgång ${t.departure_time.slice(0, 5)}</div>
+          <div class="spots ${spotsClass}">${spotsText}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function selectTrip(el) {
+      const spots = parseInt(el.dataset.spots);
+      if (spots <= 0) return;
+      document.querySelectorAll('.trip-card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedTripId = el.dataset.id;
+      selectedTripSpots = spots;
+      document.getElementById('input-count').max = spots;
+      document.getElementById('booking-form').classList.remove('hidden');
+    }
+
+    async function submitBooking() {
+      const name = document.getElementById('input-name').value.trim();
+      const phone = document.getElementById('input-phone').value.trim();
+      const numPeople = parseInt(document.getElementById('input-count').value);
+
+      if (!name || !phone || !numPeople || !selectedTripId) {
+        showMsg('msg-book', 'Fyll i alla fält.', 'error');
+        return;
+      }
+      if (numPeople > selectedTripSpots) {
+        showMsg('msg-book', `Bara ${selectedTripSpots} platser kvar.`, 'error');
+        return;
+      }
+
+      const btn = document.getElementById('btn-book');
+      btn.disabled = true;
+      btn.textContent = 'Bokar...';
+
+      const { error } = await sb.from('bookings').insert({
+        trip_id: selectedTripId,
+        name,
+        phone,
+        num_people: numPeople
+      });
+
+      btn.disabled = false;
+      btn.textContent = 'Boka';
+
+      if (error) {
+        const msg = error.message.includes('platser') ? 'Inte tillräckligt med platser kvar.' : 'Något gick fel. Försök igen.';
+        showMsg('msg-book', msg, 'error');
+        return;
+      }
+
+      showMsg('msg-book', 'Bokningen är bekräftad!', 'success');
+      document.getElementById('input-name').value = '';
+      document.getElementById('input-phone').value = '';
+      document.getElementById('input-count').value = '1';
+      document.getElementById('booking-form').classList.add('hidden');
+      loadTrips();
+    }
+
+    // Manage bookings
+    async function lookupBookings() {
+      const phone = document.getElementById('lookup-phone').value.trim();
+      if (!phone) {
+        showMsg('msg-manage', 'Ange ditt telefonnummer.', 'error');
+        return;
+      }
+
+      const container = document.getElementById('my-bookings');
+      container.innerHTML = '<p style="color:#666;font-size:0.9rem;">Söker...</p>';
+
+      const { data, error } = await sb.rpc('get_my_bookings', { my_phone: phone });
+      if (error) {
+        container.innerHTML = '<p style="color:#dc2626;font-size:0.9rem;">Kunde inte hämta bokningar.</p>';
+        return;
+      }
+      if (!data.length) {
+        container.innerHTML = '<p style="color:#666;font-size:0.9rem;">Inga bokningar hittades.</p>';
+        return;
+      }
+
+      container.innerHTML = data.map(b => `
+        <div class="booking-item">
+          <div class="booking-info">
+            <strong>${b.trip_date} — ${b.trip_location}</strong>
+            Avgång ${b.trip_time.slice(0, 5)} | ${b.num_people} pers.
+          </div>
+          <button class="btn-danger" onclick="cancelBooking('${b.id}', '${b.phone}')">Avboka</button>
+        </div>
+      `).join('');
+    }
+
+    async function cancelBooking(id, phone) {
+      if (!confirm('Vill du avboka?')) return;
+      const { data, error } = await sb.rpc('cancel_booking', { booking_id: id, booking_phone: phone });
+      if (error) {
+        showMsg('msg-manage', 'Kunde inte avboka.', 'error');
+        return;
+      }
+      showMsg('msg-manage', 'Bokningen har avbokats.', 'success');
+      lookupBookings();
+    }
+  </script>
+</body>
+</html>
